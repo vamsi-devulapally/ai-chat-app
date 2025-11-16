@@ -1,0 +1,102 @@
+name: Deploy to Azure App Service with Docker
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+        - development
+
+env:
+  # Azure Infrastructure Variables
+  AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME || 'ai-chat-app' }}
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-chat-app' }}
+  AZURE_CONTAINER_REGISTRY: ${{ vars.AZURE_CONTAINER_REGISTRY || 'aichatapp' }}
+  CONTAINER_IMAGE_NAME: ${{ vars.CONTAINER_IMAGE_NAME || 'ai-chat-app' }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Build and push Docker image to ACR
+      run: |
+        # Build and push image using Azure CLI (no local Docker required)
+        az acr build --registry ${{ env.AZURE_CONTAINER_REGISTRY }} \
+          --image ${{ env.CONTAINER_IMAGE_NAME }}:${{ github.sha }} \
+          --image ${{ env.CONTAINER_IMAGE_NAME }}:latest \
+          .
+
+    - name: Set Application Settings
+      run: |
+        # Set all application settings from GitHub secrets/variables
+        az webapp config appsettings set \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --settings \
+            AZURE_OPENAI_ENDPOINT="${{ secrets.AZURE_OPENAI_ENDPOINT }}" \
+            AZURE_OPENAI_API_KEY="${{ secrets.AZURE_OPENAI_API_KEY }}" \
+            AZURE_OPENAI_DEPLOYMENT="${{ vars.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o-mini' }}" \
+            MODEL_NAME="${{ vars.MODEL_NAME || 'gpt-4o-mini' }}" \
+            AZURE_SEARCH_ENDPOINT="${{ secrets.AZURE_SEARCH_ENDPOINT }}" \
+            AZURE_SEARCH_KEY="${{ secrets.AZURE_SEARCH_KEY }}" \
+            AZURE_SEARCH_INDEX="${{ vars.AZURE_SEARCH_INDEX }}" \
+            ENABLE_RAG="${{ vars.ENABLE_RAG || 'true' }}" \
+            RAG_TOP_K="${{ vars.RAG_TOP_K || '5' }}" \
+            RAG_SEARCH_TYPE="${{ vars.RAG_SEARCH_TYPE || 'hybrid' }}" \
+            APP_TITLE="${{ vars.APP_TITLE || 'AI Chat Assistant' }}" \
+            MAX_TOKENS="${{ vars.MAX_TOKENS || '1000' }}" \
+            TEMPERATURE="${{ vars.TEMPERATURE || '0.7' }}" \
+            CONVERSATION_HISTORY_LIMIT="${{ vars.CONVERSATION_HISTORY_LIMIT || '50' }}" \
+            REQUEST_TIMEOUT="${{ vars.REQUEST_TIMEOUT || '30' }}" \
+            MAX_RETRIES="${{ vars.MAX_RETRIES || '3' }}"
+
+    - name: Deploy to Azure Web App
+      run: |
+        # Update the container image in the web app
+        az webapp config container set \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --docker-custom-image-name ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.CONTAINER_IMAGE_NAME }}:${{ github.sha }} \
+          --docker-registry-server-url https://${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io
+
+    - name: Restart Web App
+      run: |
+        # Restart the web app to apply new container image and settings
+        az webapp restart \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }}
+
+    - name: Verify deployment
+      run: |
+        # Get the deployment status
+        az webapp show \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --query "{name:name, state:state, defaultHostName:defaultHostName, containerSettings:siteConfig.linuxFxVersion}" \
+          --output table
+        
+        # Verify app settings are applied
+        echo "Verifying application settings..."
+        az webapp config appsettings list \
+          --name ${{ env.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+          --query "[?name=='APP_TITLE' || name=='AZURE_OPENAI_DEPLOYMENT' || name=='ENABLE_RAG'].{name:name, value:value}" \
+          --output table
