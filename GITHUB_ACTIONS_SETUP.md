@@ -6,16 +6,23 @@ To enable automated deployments with the updated parameterized workflow, you'll 
 
 ### 1. Azure Service Principal
 
-Create a service principal and get the credentials:
+Create a service principal for GitHub Actions authentication:
 
+#### **Step 1.1: Get your subscription ID**
 ```bash
-# Create a service principal
+az account show --query 'id' --output tsv
+```
+
+#### **Step 1.2: Create the service principal**
+```bash
+# Replace {subscription-id} with your actual subscription ID from Step 1.1
 az ad sp create-for-rbac --name "ai-chat-app-github" \
   --role contributor \
   --scopes /subscriptions/{subscription-id}/resourceGroups/rg-chat-app \
   --sdk-auth
 ```
 
+#### **Step 1.3: Save the output**
 This will output JSON credentials that look like:
 ```json
 {
@@ -25,6 +32,8 @@ This will output JSON credentials that look like:
   "tenantId": "xxxxxxxxx"
 }
 ```
+
+**⚠️ Important**: Copy this entire JSON output - you'll need it for the GitHub secret in the next step.
 
 ### 2. GitHub Repository Secrets
 
