@@ -116,7 +116,7 @@ class RAGService:
                             "top": top_k,
                             "include_total_count": True,
                             "query_type": "semantic",
-                            "semantic_configuration_name": "default"
+                            "semantic_configuration_name": "rag-search-semantic-configuration"
                         }
                     else:
                         # Fallback to semantic search without vector if embedding fails
@@ -125,7 +125,7 @@ class RAGService:
                             "top": top_k,
                             "include_total_count": True,
                             "query_type": "semantic",
-                            "semantic_configuration_name": "default"
+                            "semantic_configuration_name": "rag-search-semantic-configuration"
                         }
                     results = self.search_client.search(**search_params)
                     logger.info("Using true hybrid search (full-text + vector + semantic)")
@@ -138,7 +138,7 @@ class RAGService:
                             "top": top_k,
                             "include_total_count": True,
                             "query_type": "semantic",
-                            "semantic_configuration_name": "default"
+                            "semantic_configuration_name": "rag-search-semantic-configuration"
                         }
                         results = self.search_client.search(**search_params)
                         logger.info("Using semantic search (fallback from hybrid)")
@@ -160,7 +160,7 @@ class RAGService:
                         "top": top_k,
                         "include_total_count": True,
                         "query_type": "semantic",
-                        "semantic_configuration_name": "default"
+                        "semantic_configuration_name": "rag-search-semantic-configuration"
                     }
                     results = self.search_client.search(**search_params)
                     logger.info("Using semantic search")
