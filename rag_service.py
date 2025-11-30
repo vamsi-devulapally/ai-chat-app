@@ -111,7 +111,7 @@ class RAGService:
                                 "kind": "vector",  # Required parameter
                                 "vector": query_embedding,
                                 "k_nearest_neighbors": top_k,
-                                "fields": "contentVector"  # Adjust field name based on your index
+                                "fields": "text_vector"  # Adjust field name based on your index
                             }],
                             "top": top_k,
                             "include_total_count": True,
